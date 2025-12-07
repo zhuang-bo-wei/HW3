@@ -193,6 +193,16 @@ class DBManager:
         if game_name not in self.game_data:
             return False, "Game not found."
         
+        user_history = self.get_user_history(username)
+        has_played = False
+        for record in user_history:
+            if record.get('game') == game_name:
+                has_played = True
+                break
+        
+        if not has_played:
+            return False, "您必須先遊玩過此遊戲，才能撰寫評論。"
+        
         # 確保 reviews 欄位存在 (舊資料可能沒有)
         if "reviews" not in self.game_data[game_name]:
             self.game_data[game_name]["reviews"] = []

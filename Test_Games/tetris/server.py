@@ -9,22 +9,22 @@ import sys
 # === 遊戲參數 ===
 WIDTH = 10
 HEIGHT = 20
-GRAVITY_MS = 800      # 方塊自動下落速度 (毫秒)
-BROADCAST_MS = 100    # 狀態廣播間隔 (毫秒，0.1秒更新一次，確保看得到對手動態)
-WIN_LINES = 3         # 勝利條件：消除行數
+GRAVITY_MS = 800      
+BROADCAST_MS = 100    
+WIN_LINES = 3         
 
-# 方塊形狀定義 (4x4 矩陣索引)
+# 方塊形狀定義
 BRICK_SHAPES = {
-    1: [(4, 8, 9, 13), (9, 10, 12, 13)], # S (Green)
-    2: [(5, 8, 9, 12), (8, 9, 13, 14)],  # Z (Red)
-    3: [(8, 12, 13, 14), (4, 5, 8, 12), (8, 9, 10, 14), (5, 9, 12, 13)], # L (Orange)
-    4: [(10, 12, 13, 14), (4, 8, 12, 13), (8, 9, 10, 12), (4, 5, 9, 13)], # J (Blue)
-    5: [(9, 12, 13, 14), (4, 8, 9, 12), (8, 9, 10, 13), (5, 8, 9, 13)],   # T (Purple)
-    6: [(8, 9, 12, 13)], # O (Yellow)
-    7: [(12, 13, 14, 15), (1, 5, 9, 13)] # I (Cyan)
+    1: [(4, 8, 9, 13), (9, 10, 12, 13)], 
+    2: [(5, 8, 9, 12), (8, 9, 13, 14)],  
+    3: [(8, 12, 13, 14), (4, 5, 8, 12), (8, 9, 10, 14), (5, 9, 12, 13)], 
+    4: [(10, 12, 13, 14), (4, 8, 12, 13), (8, 9, 10, 12), (4, 5, 9, 13)], 
+    5: [(9, 12, 13, 14), (4, 8, 9, 12), (8, 9, 10, 13), (5, 8, 9, 13)],   
+    6: [(8, 9, 12, 13)], 
+    7: [(12, 13, 14, 15), (1, 5, 9, 13)] 
 }
 
-# === 輔助函式: RLE 壓縮 (減少傳輸量) ===
+# === 輔助函式 ===
 def board_to_rle(board):
     parts = []
     for row in board:
@@ -55,19 +55,16 @@ def get_brick_coords(brick_id, state, offset_x, offset_y):
         coords.append((x, y))
     return coords
 
-# === 核心邏輯: 單人俄羅斯方塊引擎 ===
+# === 核心邏輯 ===
 class TetrisEngine:
     def __init__(self, seed):
         self.board = [[0] * WIDTH for _ in range(HEIGHT)]
         self.score = 0
-        self.total_lines = 0 # 累計消除行數
+        self.total_lines = 0 
         self.game_over = False
-        self.win = False     # 是否達成勝利條件
-        
-        # 7-bag 隨機生成器
+        self.win = False     
         self.rng = random.Random(seed)
         self.bag = []
-        
         self.active_piece = None
         self.next_piece = self._get_next_piece()
         self.spawn_piece()
@@ -77,36 +74,24 @@ class TetrisEngine:
         self.rng.shuffle(self.bag)
 
     def _get_next_piece(self):
-        if not self.bag:
-            self._fill_bag()
+        if not self.bag: self._fill_bag()
         return self.bag.pop(0)
 
     def spawn_piece(self):
-        self.active_piece = {
-            'id': self.next_piece,
-            'state': 0,
-            'x': 3,
-            'y': 0
-        }
+        self.active_piece = {'id': self.next_piece, 'state': 0, 'x': 3, 'y': 0}
         self.next_piece = self._get_next_piece()
-        # 生成即碰撞 -> Game Over
         if self.check_collision():
             self.game_over = True
 
     def check_collision(self, dx=0, dy=0, rotate=0):
         if not self.active_piece: return False
-        
         new_x = self.active_piece['x'] + dx
         new_y = self.active_piece['y'] + dy
         new_state = self.active_piece['state'] + rotate
-        
         coords = get_brick_coords(self.active_piece['id'], new_state, new_x, new_y)
-        
         for cx, cy in coords:
-            if cx < 0 or cx >= WIDTH or cy >= HEIGHT:
-                return True
-            if cy >= 0 and self.board[cy][cx] != 0:
-                return True
+            if cx < 0 or cx >= WIDTH or cy >= HEIGHT: return True
+            if cy >= 0 and self.board[cy][cx] != 0: return True
         return False
 
     def lock_piece(self):
@@ -115,34 +100,26 @@ class TetrisEngine:
         for cx, cy in coords:
             if 0 <= cy < HEIGHT and 0 <= cx < WIDTH:
                 self.board[cy][cx] = self.active_piece['id']
-        
         self.check_lines()
         self.spawn_piece()
 
     def check_lines(self):
         lines_to_clear = []
         for y in range(HEIGHT):
-            if all(self.board[y]):
-                lines_to_clear.append(y)
-        
+            if all(self.board[y]): lines_to_clear.append(y)
         count = len(lines_to_clear)
         if count > 0:
-            # 移除滿行
             for y in sorted(lines_to_clear, reverse=True):
                 del self.board[y]
                 self.board.insert(0, [0] * WIDTH)
-            
             self.total_lines += count
             self.score += count * 100 * count
-            
-            # [關鍵修改] 檢查勝利條件：先消 3 行者勝
             if self.total_lines >= WIN_LINES:
                 self.win = True
                 self.game_over = True
 
     def move(self, action):
         if self.game_over: return
-        
         if action == 'LEFT':
             if not self.check_collision(dx=-1): self.active_piece['x'] -= 1
         elif action == 'RIGHT':
@@ -150,24 +127,23 @@ class TetrisEngine:
         elif action == 'ROTATE':
             if not self.check_collision(rotate=1): self.active_piece['state'] += 1
         elif action == 'DOWN':
-            if not self.check_collision(dy=1):
-                self.active_piece['y'] += 1
-            else:
-                self.lock_piece()
+            if not self.check_collision(dy=1): self.active_piece['y'] += 1
+            else: self.lock_piece()
         elif action == 'DROP':
-            while not self.check_collision(dy=1):
-                self.active_piece['y'] += 1
+            while not self.check_collision(dy=1): self.active_piece['y'] += 1
             self.lock_piece()
 
 # === 遊戲伺服器 ===
 class GameServer:
-    def __init__(self, port, expected_players):
+    # [修正] 增加 player_names 參數
+    def __init__(self, port, expected_players, player_names):
         self.port = port
         self.expected_players = expected_players
         self.server_socket = None
-        self.clients = [] # [{'sock':..., 'engine':..., 'name':...}]
+        self.clients = [] 
         self.running = True
-        self.seed = random.randint(0, 999999) # 共用種子確保方塊序列相同
+        self.seed = random.randint(0, 999999)
+        self.player_names = player_names # 保存完整名單
 
     def start(self):
         print(f"Tetris Server starting on port {self.port}...")
@@ -176,16 +152,26 @@ class GameServer:
         self.server_socket.bind(('0.0.0.0', self.port))
         self.server_socket.listen(self.expected_players)
 
-        # 等待玩家
         while len(self.clients) < self.expected_players:
             conn, addr = self.server_socket.accept()
-            name = conn.recv(1024).decode().strip()
-            print(f"Player {name} connected")
-            
-            engine = TetrisEngine(self.seed)
-            self.clients.append({'sock': conn, 'engine': engine, 'name': name})
-            
-            self.broadcast_system(f"Waiting: {len(self.clients)}/{self.expected_players}")
+            try:
+                conn.settimeout(5.0)
+                name = conn.recv(1024).decode('utf-8').strip()
+                conn.settimeout(None)
+                
+                # [修正] 驗證身分
+                if name not in self.player_names:
+                    print(f"Rejected unknown player: {name}")
+                    conn.close()
+                    continue
+                
+                print(f"Player {name} connected")
+                engine = TetrisEngine(self.seed)
+                self.clients.append({'sock': conn, 'engine': engine, 'name': name})
+                self.broadcast_system(f"Waiting: {len(self.clients)}/{self.expected_players}")
+            except Exception as e:
+                print(f"Connection error: {e}")
+                conn.close()
 
         print("Game Starting!")
         self.game_loop()
@@ -197,13 +183,12 @@ class GameServer:
             except: pass
 
     def broadcast_state(self):
-        """廣播所有玩家的狀態"""
         states = []
         for c in self.clients:
             engine = c['engine']
             state = {
                 'name': c['name'],
-                'board': board_to_rle(engine.board), # 壓縮棋盤
+                'board': board_to_rle(engine.board),
                 'lines': engine.total_lines,
                 'target': WIN_LINES,
                 'game_over': engine.game_over,
@@ -217,8 +202,19 @@ class GameServer:
             try: c['sock'].sendall(payload.encode())
             except: pass
 
+    # [新增] 處理斷線邏輯
+    def handle_disconnect(self, disconnected_name):
+        print(f"Player {disconnected_name} disconnected.")
+        # 如果是雙人對戰，剩下的人就是贏家
+        winner = None
+        for name in self.player_names:
+            if name != disconnected_name:
+                winner = name
+                break
+        
+        self.end_game(winner if winner else "None")
+
     def game_loop(self):
-        # 啟動輸入監聽
         for idx, client in enumerate(self.clients):
             t = threading.Thread(target=self.handle_input, args=(idx,))
             t.daemon = True
@@ -230,48 +226,46 @@ class GameServer:
         while self.running:
             current_time = time.time()
             
-            # 1. 處理重力 (自然下落)
+            # [修正] 檢查連線狀態 (handle_input 若偵測到斷線會將 running 設為 False)
+            if not self.running: break
+
             if current_time - last_tick > (GRAVITY_MS / 1000.0):
                 for c in self.clients:
                     if not c['engine'].game_over:
                         c['engine'].move('DOWN')
                 last_tick = current_time
             
-            # 2. 定期廣播狀態 (實現每秒更新對手狀態)
             if current_time - last_broadcast > (BROADCAST_MS / 1000.0):
                 self.broadcast_state()
                 last_broadcast = current_time
             
-            # 3. 檢查勝負條件
-            # 條件 A: 有人達到目標行數 -> 獲勝
             winner = None
             for c in self.clients:
                 if c['engine'].win:
                     winner = c['name']
                     break
             
-            # 條件 B: 有人堆到頂死掉 -> 對手獲勝
             if not winner:
                 alive = [c for c in self.clients if not c['engine'].game_over]
-                if len(alive) < len(self.clients): # 有人死掉了
-                    if len(alive) == 1:
-                        winner = alive[0]['name'] # 活著的人贏
-                    elif len(alive) == 0:
-                        winner = "Draw" # 都死了
+                if len(alive) < len(self.clients):
+                    if len(alive) == 1: winner = alive[0]['name']
+                    elif len(alive) == 0: winner = "Draw"
             
             if winner:
                 self.end_game(winner)
                 break
             
-            time.sleep(0.01) # 避免 CPU 滿載
+            time.sleep(0.01)
 
     def handle_input(self, player_idx):
         conn = self.clients[player_idx]['sock']
         engine = self.clients[player_idx]['engine']
+        name = self.clients[player_idx]['name']
+        
         while self.running:
             try:
                 data = conn.recv(1024).decode()
-                if not data: break
+                if not data: raise Exception("Disconnected")
                 for line in data.split('\n'):
                     if not line: continue
                     try:
@@ -279,22 +273,31 @@ class GameServer:
                         if cmd['type'] == 'INPUT':
                             engine.move(cmd['action'])
                     except: pass
-            except: break
+            except:
+                # [修正] 偵測到斷線時觸發
+                if self.running:
+                    self.handle_disconnect(name)
+                break
 
     def end_game(self, winner):
+        self.running = False
         print(f"Game Over. Winner: {winner}")
-        self.broadcast_state() # 發送最後狀態
+        try: self.broadcast_state()
+        except: pass
+        
         payload = json.dumps({'type': 'GAME_OVER', 'winner': winner}) + '\n'
         for c in self.clients:
-            try:
-                c['sock'].sendall(payload.encode())
-                c['sock'].close()
+            try: c['sock'].sendall(payload.encode())
+            except: pass
+            try: c['sock'].close()
             except: pass
         
-        # [關鍵] 輸出標準結果供 Lobby 讀取
+        if self.server_socket: self.server_socket.close()
+
+        # [修正] 使用完整名單回報
         result = {
             "winner": winner,
-            "players": [c['name'] for c in self.clients]
+            "players": self.player_names 
         }
         print(f"GAME_RESULT: {json.dumps(result)}")
         sys.exit(0)
@@ -303,7 +306,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--player_count', type=int, default=2)
+    # [修正] 接收 --players 參數
+    parser.add_argument('--players', nargs='+', required=True)
     args = parser.parse_args()
 
-    server = GameServer(args.port, args.player_count)
+    # 傳入 players
+    server = GameServer(args.port, args.player_count, args.players)
     server.start()
