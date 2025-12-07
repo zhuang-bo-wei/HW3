@@ -243,8 +243,12 @@ class LobbyClient:
 
     def _handle_review_ui(self, game_name):
         print(f"\n=== 評論遊戲: {game_name} ===")
+        print("(若要取消，請在評分時輸入 '0' 或 'q')")
         while True:
             r_input = get_input("請給予評分 (1-5): ")
+            if r_input.lower() in ['0', 'q']:
+                print(">> 已取消評論。")
+                return
             if r_input.isdigit() and 1 <= int(r_input) <= 5:
                 rating = int(r_input)
                 break
@@ -446,9 +450,40 @@ class LobbyClient:
                     return
 
             elif cmd == '2' and is_host:
-                target = get_input("輸入要邀請的玩家 ID: ")
+                # === [修正] 邀請玩家：先列出在線用戶 ===
+                print(">> 正在獲取在線玩家列表...")
+                self.core.send_request("get_online_players")
+                
+                online_list = []
+                while self.core.is_connected:
+                    res = self._handle_network_messages()
+                    if isinstance(res, dict) and res.get('type') == 'ONLINE_USERS_RESPONSE':
+                        online_list = res.get('data', [])
+                        break
+                    elif res == 'DISCONNECTED': return
+                    time.sleep(0.1)
+
+                if not online_list:
+                    print("  (目前沒有其他玩家在線)")
+                    continue
+                
+                # 顯示列表
+                print("\n=== 在線玩家列表 ===")
+                for idx, name in enumerate(online_list):
+                    print(f"  {idx+1}. {name}")
+                print("-" * 30)
+
+                choice = get_input("請選擇編號或輸入名稱邀請 (輸入 '0' 取消): ")
+                if choice == '0': continue
+                
+                if choice.isdigit() and 0 < int(choice) <= len(online_list):
+                    target = online_list[int(choice) - 1]
+                else:
+                    target = choice # 允許直接輸入不在列表中的名稱
+
+                print(f">> 邀請玩家 ID: {target}")
                 self.core.send_request("invite_user", {"target_user": target})
-                # 可以選擇是否等待 INVITE_RESPONSE
+                # ===============================================
             elif cmd == '3': 
                 self.core.send_request("leave_room")
                 return 
