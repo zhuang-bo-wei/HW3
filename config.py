@@ -3,7 +3,7 @@ import os
 import sys
 
 # --- 網路配置 ---
-SERVER_HOST = '127.0.0.1' 
+SERVER_HOST = '140.113.17.11' 
 LOBBY_PORT = 8888
 DEVELOPER_PORT = 8889
 HEADER_SIZE = 4
