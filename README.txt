@@ -1,3 +1,4 @@
+0. 除了server以外都需要下載
 因為有遊戲需要使用pygame所以
 1.  Windows / macOS / Linux:  pip install pygame
 
