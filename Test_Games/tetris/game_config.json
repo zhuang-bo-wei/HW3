@@ -1,0 +1,10 @@
+{
+    "game_name": "TetrisSprint",
+    "version": "1.0.0",
+    "server_cmd": ["python", "server.py"],
+    "client_cmd": ["python", "client.py"],
+    "is_gui": true,
+    "min_players": 2,
+    "max_players": 2,
+    "description": "雙人俄羅斯方塊競速！無需攻擊，專注速度。最先消除 3 行者獲勝。"
+}

@@ -1,0 +1,10 @@
+{
+    "game_name": "RussianRoulette",
+    "version": "1.0.0",
+    "server_cmd": ["python", "server.py"],
+    "client_cmd": ["python", "client.py"],
+    "is_gui": false,
+    "min_players": 2,
+    "max_players": 2,
+    "description": "一個簡單、刺激的雙人 CLI 俄羅斯輪盤測試遊戲。"
+}

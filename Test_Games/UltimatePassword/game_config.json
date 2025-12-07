@@ -1,0 +1,10 @@
+{
+    "game_name": "UltimatePassword",
+    "version": "1.0.0",
+    "server_cmd": ["python", "server.py"],
+    "client_cmd": ["python", "client.py"],
+    "is_gui": false,
+    "min_players": 2,
+    "max_players": 10,
+    "description": "刺激的多人終極密碼！猜中數字的人就輸了 (爆炸)。範圍 1-100。"
+}
