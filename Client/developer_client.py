@@ -39,6 +39,43 @@ class DeveloperClient:
         # 網路核心
         self.core = DeveloperClientCore()
 
+    def _fetch_and_list_games(self, action_name=""):
+        """
+        向 Server 請求已上架遊戲列表，顯示給使用者，並回傳 {name: info} 字典。
+        如果 action_name 不為空，則在標題中顯示。
+        """
+        if action_name:
+             print(f"\n>> 正在讀取您的遊戲列表 ({action_name})...")
+        else:
+             print(f"\n>> 正在讀取您的遊戲列表...")
+             
+        self.core.send_request("get_uploaded_games")
+        
+        my_games = {}
+        while self.core.is_connected:
+            res = self._handle_network_messages()
+            if isinstance(res, dict) and res.get('status') == 'GAME_LIST_SUCCESS':
+                my_games = res.get('data', {})
+                break
+            elif res == 'DISCONNECTED' or res == 'GAME_LIST_FAIL':
+                self.message = f"無法取得列表: {self.message}"
+                return None
+            time.sleep(0.1)
+        
+        # 顯示列表 (作為主儀表板或操作選擇清單)
+        game_names = list(my_games.keys())
+        print(f"\n{'編號':<6} | {'遊戲名稱':<20} | {'目前版本'}")
+        print("-" * 40)
+        if not my_games:
+            print("  (您尚未上架任何遊戲)")
+        else:
+            for i, name in enumerate(game_names):
+                ver = my_games[name].get('version', 'N/A')
+                print(f"{i+1:<6} | {name:<20} | {ver}")
+        print("-" * 40)
+        
+        return my_games
+
     # --- 上傳遊戲邏輯 ---
     def _handle_upload(self):
         print("\n=== 上傳遊戲 ===")
@@ -105,42 +142,13 @@ class DeveloperClient:
         except Exception as e:
             print(f"上傳過程發生錯誤: {e}")
 
-    # hw/developer/developer_client.py
-
     def _handle_update(self):
-        print("\n=== 更新遊戲 (Update Game) ===")
-        
-        # 1. 請求並顯示遊戲列表
-        print(">> 正在讀取您的遊戲列表...")
-        self.core.send_request("get_uploaded_games")
-        
-        my_games = {}
-        while self.core.is_connected:
-            res = self._handle_network_messages()
-            if isinstance(res, dict) and res.get('status') == 'GAME_LIST_SUCCESS':
-                my_games = res.get('data', {})
-                break
-            elif res == 'DISCONNECTED':
-                return
-            elif res == 'GAME_LIST_FAIL':
-                print(f">> {self.message}")
-                return
-            time.sleep(0.1)
-
+        # 1. 取得並顯示列表，讓使用者選擇
+        my_games = self._fetch_and_list_games("更新")
         if not my_games:
-            print("  (您尚未上架任何遊戲，請先使用 '1. 上傳遊戲')")
-            input("按 Enter 返回...")
             return
 
-        # 2. 列出並選擇遊戲
         game_names = list(my_games.keys())
-        print(f"\n{'編號':<6} | {'遊戲名稱':<20} | {'目前版本'}")
-        print("-" * 40)
-        for i, name in enumerate(game_names):
-            ver = my_games[name].get('version', 'N/A')
-            print(f"{i+1:<6} | {name:<20} | {ver}")
-        print("-" * 40)
-
         choice = get_input("請選擇要更新的遊戲編號 (輸入 '0' 取消): ")
         if choice == '0': return
         
@@ -152,21 +160,22 @@ class DeveloperClient:
         current_version = my_games[target_game_name].get('version')
         print(f"\n>> 您選擇更新: {target_game_name} (目前 v{current_version})")
 
-        # 3. 輸入新路徑並驗證
+        # 2. 輸入新路徑並驗證 (後續邏輯不變)
         path = get_input("請輸入 [新版本] 遊戲專案資料夾路徑: ")
         
+        # 完整的邏輯請從原本的 _handle_update 複製過來，確保從這裡開始執行：
         if not os.path.exists(path) or not os.path.isdir(path):
             self.message = "錯誤：路徑不存在或不是資料夾。"
             print(f">> {self.message}")
             return
-
+        
         config_path = os.path.join(path, "game_config.json")
         if not os.path.exists(config_path):
             print(">> 錯誤：資料夾內缺少 game_config.json 設定檔。")
             return
 
         try:
-            # 4. 讀取並檢查設定檔
+            # 讀取並檢查設定檔
             with open(config_path, 'r', encoding='utf-8') as f:
                 game_config = json.load(f)
             
@@ -228,21 +237,35 @@ class DeveloperClient:
             print(f"更新過程發生錯誤: {e}")
 
     def _handle_delete(self):
-        print("\n=== 下架遊戲 ===")
+        print("\n=== 下架遊戲 (Delete Game) ===")
         print("警告：此操作將永久刪除遊戲檔案與紀錄。")
-        game_name = get_input("請輸入要下架的遊戲名稱: ")
         
-        confirm = get_input(f"確認要刪除 '{game_name}' 嗎? (y/N): ", required=False)
+        # 1. 取得並顯示列表，讓使用者選擇
+        my_games = self._fetch_and_list_games("下架")
+        if not my_games:
+            return
+
+        game_names = list(my_games.keys())
+        choice = get_input("請選擇要下架的遊戲編號 (輸入 '0' 取消): ")
+        if choice == '0': return
+        
+        if not choice.isdigit() or int(choice) < 1 or int(choice) > len(game_names):
+            print("無效的選擇。")
+            return
+            
+        game_name_to_delete = game_names[int(choice)-1]
+        
+        # 2. 確認與發送請求 (後續邏輯不變)
+        confirm = get_input(f"確認要刪除 '{game_name_to_delete}' 嗎? (y/N): ", required=False)
         if confirm.lower() != 'y':
             self.message = "已取消下架操作。"
             return
 
-        self.core.send_request("delete_game", {"game_name": game_name})
+        self.core.send_request("delete_game", {"game_name": game_name_to_delete})
 
-        # === [修正點] 手動印出訊息 ===
-        print(">> 下架請求已發送...")
+        print(f">> 請求下架 {game_name_to_delete} 已發送...")
         
-        # 等待回應
+        # 3. 等待回應
         while self.core.is_connected:
             status = self._handle_network_messages()
             if status == 'DELETE_SUCCESS':
@@ -395,38 +418,40 @@ class DeveloperClient:
         
 
     def _cli_developer_main_menu(self):
-        """處理開發者主選單"""
+        """處理開發者主選單 (Dashboard 風格)"""
         while self.user_info and self.core.is_connected:
             username = self.user_info.get('username', '開發者')
+            
+            # 1. 取得並顯示遊戲列表 (儀表板視圖)
+            self._fetch_and_list_games()
+            
             print("\n" + "="*30)
-            print(f"  歡迎您，{username} (開發者模式)")
+            print(f"   歡迎您，{username}")
             print(f"  {self.message}")
             print("="*30)
-            print("1. 上傳遊戲")
-            print("2. 我的遊戲")
-            print("3. 刪除遊戲")
+            print("1. 上傳新遊戲 (Upload New)")
+            print("2. 更新遊戲 (Update Existing)")
+            print("3. 刪除遊戲 (Delete)")
             print("4. 登出")
             
             choice = get_input("請選擇功能 (1-4): ")
 
             if choice == '4':
                 self.core.send_request("logout", {"username": username})
-                self.message = "登出請求已發送..."
-                
-                # 等待回應
+                # ... (登出邏輯保持不變) ...
                 while self.core.is_connected:
                     status = self._handle_network_messages()
                     if status == 'LOGOUT_SUCCESS':
-                        return # 登出成功，返回登入/註冊介面
+                        return
                     elif status == 'DISCONNECTED':
                         return
                     time.sleep(0.1)
             elif choice == '1':
                 self._handle_upload()
             elif choice == '2':
-                self._handle_update()
+                self._handle_update() # 進入更新流程
             elif choice == '3':
-                self._handle_delete()
+                self._handle_delete() # 進入刪除流程
             else:
                 self.message = "無效的選擇，請重新輸入。"
 

@@ -457,7 +457,10 @@ class LobbyClient:
 
     def _login_menu(self):
         while not self.user_info and self.core.is_connected:
-            print(f"\n=== 玩家登入 ===")
+            print("\n" + "="*30)
+            print("   玩家大廳 - 登入/註冊") 
+            print(f"  {self.message}")
+            print("-"*30)
             print("1. 登入  2. 註冊  3. 離開")
             choice = get_input("> ")
             
@@ -471,7 +474,14 @@ class LobbyClient:
                 # 等待回應
                 while self.core.is_connected:
                     status = self._handle_network_messages()
-                    if status in ('LOGIN_SUCCESS', 'LOGIN_FAIL', 'REGISTER_DONE'): break
+                    if status == 'LOGIN_SUCCESS': break
+                    
+                    if status == 'REGISTER_DONE':
+                        print(f">> {self.message}") 
+                        break
+                        
+                    elif status in ('LOGIN_FAIL', 'REGISTER_FAIL', 'DISCONNECTED'):
+                        break
         return True
 
     def _browse_store(self):

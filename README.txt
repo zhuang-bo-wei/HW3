@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 0. 除了server以外都需要下載
-=======
-除了server資料夾都需要下載
->>>>>>> 6cf8dd6f3bcc0346fc36053f25b2baacb57dadb1
 因為有遊戲需要使用pygame所以
 1.  Windows / macOS / Linux:  pip install pygame
 
