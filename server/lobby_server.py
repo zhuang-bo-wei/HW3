@@ -115,6 +115,7 @@ class LobbyServer:
         client_sock.close()
         print(f"[Debug] 與 {client_addr} 的連線已關閉")
 
+
     def route_request(self, action, data, current_user, client_sock):
         if action == 'register':
             return self._handle_register(data)
@@ -151,6 +152,8 @@ class LobbyServer:
             return self._handle_get_history(current_user)
         elif action == 'add_review':
             return self._handle_add_review(data, current_user)
+        elif action == 'get_online_players': 
+            return self._handle_get_online_players(current_user)
         
         return {'type': 'ERROR', 'success': False, 'message': f'Unknown action: {action}'}
 
@@ -398,6 +401,15 @@ class LobbyServer:
         
         return {'type': 'REVIEW_RESPONSE', 'success': success, 'message': msg}
 
+    def _handle_get_online_players(self, current_user):
+        """回傳目前所有在線的玩家名稱，排除請求者本人。"""
+        online_users = []
+        for username in self.logged_in_players.keys():
+            if username != current_user:
+                online_users.append(username)
+        
+        return {'type': 'ONLINE_USERS_RESPONSE', 'success': True, 'data': online_users}
+
     # 輔助：查詢玩家所在的 Room ID
     def _get_player_room_id(self, username):
         for r_id, room in self.rooms.items():
@@ -459,8 +471,13 @@ class LobbyServer:
         # 為了作業順利，我們假設: uploaded_games/TestSnake/server.py 存在
         # 指令: python server.py --port 9001 --player_count 2
         
-        full_cmd = server_cmd + ['--port', str(game_port), '--player_count', str(len(room['players']))]
-        
+        full_cmd = server_cmd + [
+            '--port', str(game_port), 
+            '--player_count', str(len(room['players'])),
+            '--players' # 新增參數旗標
+        ] + room['players'] 
+
+
         print(f"Starting Game Server: {full_cmd} at {game_dir}")
 
         try:

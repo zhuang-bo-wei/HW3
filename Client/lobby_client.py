@@ -457,9 +457,16 @@ class LobbyClient:
                 online_list = []
                 while self.core.is_connected:
                     res = self._handle_network_messages()
-                    if isinstance(res, dict) and res.get('type') == 'ONLINE_USERS_RESPONSE':
-                        online_list = res.get('data', [])
-                        break
+                    
+                    if isinstance(res, dict):
+                        if res.get('type') == 'ONLINE_USERS_RESPONSE':
+                            online_list = res.get('data', [])
+                            break
+                        # [新增] 如果收到 ERROR，也要跳出迴圈，不要傻等
+                        elif res.get('type') == 'ERROR':
+                            print(f">> 獲取列表失敗: {res.get('message')}")
+                            break
+                            
                     elif res == 'DISCONNECTED': return
                     time.sleep(0.1)
 
