@@ -17,7 +17,13 @@ def open_new_console(script_path):
         subprocess.Popen(['start', 'cmd', '/k', sys.executable, script_path], shell=True)
     elif platform.system() == 'Darwin': # macOS
         # macOS: 使用 open -a Terminal
-        subprocess.Popen(['open', '-a', 'Terminal', sys.executable, script_path])
+        cmd = f'"{python_exe}" "{script_path}"'
+        
+        # 處理雙引號跳脫 (Escape quotes for AppleScript)
+        safe_cmd = cmd.replace('"', '\\"')
+        
+        # 呼叫 AppleScript
+        subprocess.Popen(['osascript', '-e', f'tell application "Terminal" to do script "{safe_cmd}"'])
     else: # Linux
         # Linux: 嘗試 x-terminal-emulator 或 gnome-terminal
         try:

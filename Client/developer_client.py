@@ -77,19 +77,51 @@ class DeveloperClient:
         return my_games
 
     # --- 上傳遊戲邏輯 ---
-    def _handle_upload(self):
-        print("\n=== 上傳遊戲 ===")
-        # 1. 輸入路徑
-        path = get_input("請輸入遊戲專案資料夾路徑 (例如 games/Snake): ")
+    def _select_game_from_test_games(self):
+        # 定義 Test_Games 路徑 (在專案根目錄下)
+        test_games_dir = os.path.join(parent_dir, 'Test_Games')
         
-        if not os.path.exists(path) or not os.path.isdir(path):
-            self.message = "錯誤：路徑不存在或不是資料夾。"
-            return
+        if not os.path.exists(test_games_dir):
+            print(f"\n[錯誤] 找不到測試遊戲目錄: {test_games_dir}")
+            print("請確認您已建立 'Test_Games' 資料夾並放入遊戲專案。")
+            return None
 
-        # 2. 驗證 game_config.json 是否存在
+        # 掃描資料夾
+        games = [d for d in os.listdir(test_games_dir) if os.path.isdir(os.path.join(test_games_dir, d))]
+        
+        if not games:
+            print(f"\n[提示] '{test_games_dir}' 資料夾是空的。")
+            return None
+
+        print(f"\n=== 📂 選擇本機遊戲專案 ===")
+        print(f"路徑: {test_games_dir}")
+        print("-" * 40)
+        for i, name in enumerate(games):
+            print(f"  {i+1}. {name}")
+        print("-" * 40)
+
+        choice = get_input("請選擇專案編號 (輸入 '0' 取消): ")
+        if choice == '0': return None
+        
+        if choice.isdigit() and 1 <= int(choice) <= len(games):
+            selected_game = games[int(choice)-1]
+            return os.path.join(test_games_dir, selected_game)
+        else:
+            print("無效的選擇。")
+            return None
+
+    # [修改] 上傳遊戲邏輯
+    def _handle_upload(self):
+        print("\n=== 上傳新遊戲 (Upload) ===")
+        
+        # 1. 改用選單選擇路徑
+        path = self._select_game_from_test_games()
+        if not path: return
+
+        # 2. 驗證 config (後續邏輯保持不變)
         config_path = os.path.join(path, "game_config.json")
         if not os.path.exists(config_path):
-            self.message = "錯誤：資料夾內缺少 game_config.json 設定檔。"
+            self.message = f"錯誤：'{os.path.basename(path)}' 資料夾內缺少 game_config.json。"
             return
 
         try:
@@ -99,41 +131,33 @@ class DeveloperClient:
             
             print(f"正在打包遊戲: {game_config.get('game_name')} (v{game_config.get('version')})...")
 
-            # 4. 壓縮與編碼
-            # 建立一個暫存的 zip 檔
+            # 4. 壓縮與上傳 (保持不變)
             with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
                 tmp_zip_path = tmp_file.name
             
-            # 壓縮資料夾 (shutil.make_archive 不需要副檔名)
             shutil.make_archive(tmp_zip_path.replace('.zip', ''), 'zip', path)
             
-            # 讀取 ZIP 並轉為 Base64
             with open(tmp_zip_path, 'rb') as f:
                 zip_data = f.read()
                 zip_b64 = base64.b64encode(zip_data).decode('utf-8')
             
-            # 刪除暫存檔
             os.remove(tmp_zip_path)
 
-            # 5. 發送請求
             payload = {
                 "game_config": game_config,
                 "zip_data": zip_b64
             }
             
             self.core.send_request("upload_game", payload)
-            
-            # === [修正點] 手動印出訊息，不要只存到 self.message ===
             print(">> 上傳請求已發送，正在傳輸資料... (請稍候)") 
             
-            # 6. 等待回應
             while self.core.is_connected:
                 status = self._handle_network_messages()
                 if status == 'UPLOAD_SUCCESS':
-                    print(f">> 成功: {self.message}") # 印出成功訊息
+                    print(f">> 成功: {self.message}")
                     return
                 elif status == 'UPLOAD_FAIL':
-                    print(f">> 失敗: {self.message}") # 印出失敗訊息
+                    print(f">> 失敗: {self.message}")
                     return
                 elif status == 'DISCONNECTED':
                     return
@@ -142,11 +166,11 @@ class DeveloperClient:
         except Exception as e:
             print(f"上傳過程發生錯誤: {e}")
 
+    # [修改] 更新遊戲邏輯
     def _handle_update(self):
-        # 1. 取得並顯示列表，讓使用者選擇
+        # 1. 先選擇要更新哪個已上架的遊戲
         my_games = self._fetch_and_list_games("更新")
-        if not my_games:
-            return
+        if not my_games: return
 
         game_names = list(my_games.keys())
         choice = get_input("請選擇要更新的遊戲編號 (輸入 '0' 取消): ")
@@ -158,68 +182,51 @@ class DeveloperClient:
             
         target_game_name = game_names[int(choice)-1]
         current_version = my_games[target_game_name].get('version')
-        print(f"\n>> 您選擇更新: {target_game_name} (目前 v{current_version})")
+        print(f"\n>> 您選擇更新伺服器上的: {target_game_name} (目前 v{current_version})")
 
-        # 2. 輸入新路徑並驗證 (後續邏輯不變)
-        path = get_input("請輸入 [新版本] 遊戲專案資料夾路徑: ")
-        
-        # 完整的邏輯請從原本的 _handle_update 複製過來，確保從這裡開始執行：
-        if not os.path.exists(path) or not os.path.isdir(path):
-            self.message = "錯誤：路徑不存在或不是資料夾。"
-            print(f">> {self.message}")
-            return
+        # 2. [修改] 選擇本機的新版本來源
+        path = self._select_game_from_test_games()
+        if not path: return
         
         config_path = os.path.join(path, "game_config.json")
         if not os.path.exists(config_path):
-            print(">> 錯誤：資料夾內缺少 game_config.json 設定檔。")
+            self.message = f"錯誤：'{os.path.basename(path)}' 缺少 game_config.json。"
+            print(f">> {self.message}")
             return
 
         try:
-            # 讀取並檢查設定檔
+            # 讀取並檢查 (後續保持不變)
             with open(config_path, 'r', encoding='utf-8') as f:
                 game_config = json.load(f)
             
             new_name = game_config.get('game_name')
             new_version = game_config.get('version')
 
-            # 檢查 1: 名稱是否相符
             if new_name != target_game_name:
                 print(f"\n[錯誤] 名稱不符！")
-                print(f"  您選擇更新: {target_game_name}")
-                print(f"  設定檔名稱: {new_name}")
-                print("  請確認您選對了遊戲，或是修改 config 檔。")
+                print(f"  伺服器遊戲: {target_game_name}")
+                print(f"  本機專案名: {new_name}")
                 return
 
-            # 檢查 2: 版本是否有變 (防止誤傳舊版)
             if new_version == current_version:
                 print(f"\n[警告] 新版本號 ({new_version}) 與伺服器上的版本相同。")
-                print("  這可能導致玩家無法收到更新通知。")
                 confirm = get_input("  是否仍要強制覆蓋? (y/N): ", required=False)
-                if confirm.lower() != 'y':
-                    print(">> 已取消更新。")
-                    return
+                if confirm.lower() != 'y': return
 
             print(f">> 準備上傳: {new_name} v{new_version}")
 
-            # 5. 打包與上傳 (同原邏輯)
+            # 打包與傳送 (保持不變)
             with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
                 tmp_zip_path = tmp_file.name
-            
             shutil.make_archive(tmp_zip_path.replace('.zip', ''), 'zip', path)
-            
             with open(tmp_zip_path, 'rb') as f:
                 zip_data = f.read()
                 zip_b64 = base64.b64encode(zip_data).decode('utf-8')
-            
             os.remove(tmp_zip_path)
 
-            payload = {
-                "game_config": game_config,
-                "zip_data": zip_b64
-            }
-            
+            payload = {"game_config": game_config, "zip_data": zip_b64}
             self.core.send_request("update_game", payload)
-            print(">> 更新請求已發送，正在傳輸資料... (請稍候)")
+            print(">> 更新請求已發送...")
             
             while self.core.is_connected:
                 status = self._handle_network_messages()
@@ -229,12 +236,11 @@ class DeveloperClient:
                 elif status == 'UPDATE_FAIL':
                     print(f">> 失敗: {self.message}")
                     return
-                elif status == 'DISCONNECTED':
-                    return
+                elif status == 'DISCONNECTED': return
                 time.sleep(0.1)
 
         except Exception as e:
-            print(f"更新過程發生錯誤: {e}")
+            print(f"更新錯誤: {e}")
 
     def _handle_delete(self):
         print("\n=== 下架遊戲 (Delete Game) ===")

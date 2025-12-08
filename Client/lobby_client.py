@@ -747,6 +747,10 @@ class LobbyClient:
             if not client_cmd:
                 print(">> [錯誤] 找不到啟動指令 (metadata.json 損毀或舊版本)")
                 return
+            
+            if client_cmd and client_cmd[0] == 'python':
+                client_cmd = list(client_cmd)
+                client_cmd[0] = sys.executable
 
             # 2. 組合完整指令
             # 格式: python client.py --connect IP:PORT --username NAME
