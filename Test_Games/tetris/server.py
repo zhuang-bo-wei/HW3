@@ -135,7 +135,7 @@ class TetrisEngine:
 
 # === 遊戲伺服器 ===
 class GameServer:
-    # [修正] 增加 player_names 參數
+    # [修正 1] 增加 player_names 參數接收
     def __init__(self, port, expected_players, player_names):
         self.port = port
         self.expected_players = expected_players
@@ -155,11 +155,12 @@ class GameServer:
         while len(self.clients) < self.expected_players:
             conn, addr = self.server_socket.accept()
             try:
+                # 簡單身分驗證
                 conn.settimeout(5.0)
                 name = conn.recv(1024).decode('utf-8').strip()
                 conn.settimeout(None)
                 
-                # [修正] 驗證身分
+                # [修正 2] 驗證連線者是否在名單內
                 if name not in self.player_names:
                     print(f"Rejected unknown player: {name}")
                     conn.close()
@@ -202,10 +203,11 @@ class GameServer:
             try: c['sock'].sendall(payload.encode())
             except: pass
 
-    # [新增] 處理斷線邏輯
+    # [修正 3] 新增斷線處理：斷線者判負，剩下的人獲勝
     def handle_disconnect(self, disconnected_name):
         print(f"Player {disconnected_name} disconnected.")
-        # 如果是雙人對戰，剩下的人就是贏家
+        
+        # 尋找贏家 (除了斷線者以外的人)
         winner = None
         for name in self.player_names:
             if name != disconnected_name:
@@ -226,7 +228,7 @@ class GameServer:
         while self.running:
             current_time = time.time()
             
-            # [修正] 檢查連線狀態 (handle_input 若偵測到斷線會將 running 設為 False)
+            # [修正 4] 檢查執行狀態 (若 handle_input 觸發斷線，running 會變 False)
             if not self.running: break
 
             if current_time - last_tick > (GRAVITY_MS / 1000.0):
@@ -239,6 +241,7 @@ class GameServer:
                 self.broadcast_state()
                 last_broadcast = current_time
             
+            # 勝負判定
             winner = None
             for c in self.clients:
                 if c['engine'].win:
@@ -274,7 +277,7 @@ class GameServer:
                             engine.move(cmd['action'])
                     except: pass
             except:
-                # [修正] 偵測到斷線時觸發
+                # [修正 5] 捕捉到異常，觸發斷線處理
                 if self.running:
                     self.handle_disconnect(name)
                 break
@@ -294,7 +297,7 @@ class GameServer:
         
         if self.server_socket: self.server_socket.close()
 
-        # [修正] 使用完整名單回報
+        # [修正 6] 關鍵：回傳「完整名單」給 Lobby，確保斷線者也有紀錄
         result = {
             "winner": winner,
             "players": self.player_names 
@@ -306,10 +309,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--player_count', type=int, default=2)
-    # [修正] 接收 --players 參數
     parser.add_argument('--players', nargs='+', required=True)
     args = parser.parse_args()
 
-    # 傳入 players
     server = GameServer(args.port, args.player_count, args.players)
     server.start()

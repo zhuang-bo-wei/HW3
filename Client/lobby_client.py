@@ -129,8 +129,12 @@ class LobbyClient:
                             if not res: continue
                             if res.get('type') == 'ROOM_RESPONSE':
                                 if res['success']:
-                                    print(f">> 房間建立成功！ID: {res['data']['room_id']}")
-                                    self._wait_in_room()
+                                    room_id = res.get('data', {}).get('room_id', 'Unknown')
+                                    if( room_id == 'Unknown' ):
+                                        print(">> 伺服器未回傳房間 ID。")
+                                    else:
+                                        print(f">> 房間建立成功！ID: {room_id}")
+                                        self._wait_in_room()
                                 else:
                                     print(f">> 建立失敗: {res['message']}")
                                 break
@@ -716,7 +720,7 @@ class LobbyClient:
             for h in history:
                 # 判斷對手是誰 (排除自己)
                 opponents = [p for p in h['players'] if p != self.user_info['username']]
-                opp_str = ", ".join(opponents) if opponents else "無"
+                opp_str = ", ".join(opponents) if opponents else "你的對手很神祕"
                 
                 # 簡單的對齊顯示
                 print(f"  {h['timestamp']:<20} | {h['game']:<15} | {h['result']:<6} | {opp_str}")

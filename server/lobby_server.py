@@ -498,7 +498,7 @@ class LobbyServer:
             # 5. 啟動監控執行緒 (負責收屍與紀錄結果)
             monitor_thread = threading.Thread(
                 target=self._monitor_game_process,
-                args=(room_id, process, game_name, room['players'])
+                args=(room_id, process, game_name, list(room['players']))
             )
             monitor_thread.daemon = True
             monitor_thread.start()
